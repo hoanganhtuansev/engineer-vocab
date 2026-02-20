@@ -53,7 +53,16 @@ main{max-width:1280px;margin:0 auto;padding:14px 16px;display:grid;grid-template
 .tabs{display:flex;gap:8px;flex-wrap:wrap}
 .tab{padding:9px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);font-weight:1000;font-size:12px;cursor:pointer}
 .tab.active{border-color:rgba(37,99,235,.35);background:rgba(37,99,235,.08)}
-.flash{min-height:240px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#fff,#fbfcff)}
+.flash{min-height:240px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#fff,#fbfcff);user-select:none;-webkit-user-select:none;touch-action:pan-y;position:relative;overflow:hidden;transition:transform .12s ease, box-shadow .12s ease;box-shadow:0 18px 40px rgba(2,6,23,.08)}
+
+/* ===== PWA PRO: swipe + flip micro-interactions ===== */
+.flash.anim-next{animation:evSlideNext .18s ease}
+.flash.anim-prev{animation:evSlidePrev .18s ease}
+.flash.anim-flip{animation:evFlipPop .22s ease}
+@keyframes evSlideNext{from{transform:translateX(0)}50%{transform:translateX(-10px)}to{transform:translateX(0)}}
+@keyframes evSlidePrev{from{transform:translateX(0)}50%{transform:translateX(10px)}to{transform:translateX(0)}}
+@keyframes evFlipPop{0%{transform:scale(1)}50%{transform:scale(0.98)}100%{transform:scale(1)}}
+
 .term{font-size:42px;font-weight:1000;letter-spacing:.2px}
 .subtxt{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.35;max-width:760px;white-space:pre-wrap}
 .twoCol{display:grid;grid-template-columns: 1fr 1fr;gap:10px}
@@ -675,9 +684,22 @@ function g4_check(){
 }
 
 /* ===== Wire ===== */
-$("prevBtn").addEventListener("click", ()=>{const l=dayList(); if(!l.length) return; idx=(idx-1+l.length)%l.length; flipped=false; renderFlash();});
+
+function flashAnim(kind){
+  const el=document.querySelector("#tab_flash .flash");
+  if(!el) return;
+  const cls = kind==="next" ? "anim-next" : kind==="prev" ? "anim-prev" : "anim-flip";
+  el.classList.remove("anim-next","anim-prev","anim-flip");
+  // reflow
+  void el.offsetWidth;
+  el.classList.add(cls);
+  setTimeout(()=>el.classList.remove(cls), 260);
+  try{ if(navigator.vibrate) navigator.vibrate(10); }catch(_){}
+}
+
+$("prevBtn").addEventListener("click", ()=>{flashAnim("prev"); const l=dayList(); if(!l.length) return; idx=(idx-1+l.length)%l.length; flipped=false; renderFlash();});
 $("nextBtn").addEventListener("click", ()=>{const l=dayList(); if(!l.length) return; idx=(idx+1)%l.length; flipped=false; renderFlash();});
-$("flipBtn").addEventListener("click", ()=>{flipped=!flipped; renderFlash();});
+$("flipBtn").addEventListener("click", ()=>{flashAnim("flip"); flipped=!flipped; renderFlash();});
 const flashEl=document.querySelector("#tab_flash .flash");
 if(flashEl){
   flashEl.addEventListener("click",(e)=>{
@@ -687,6 +709,27 @@ if(flashEl){
     else if(x>r.width*2/3) $("nextBtn")?.click();
     else $("flipBtn")?.click();
   });
+
+  // Touch swipe: ←/→ = Prev/Next, ↑/↓ = Flip (mobile-friendly)
+  let tx=0, ty=0, t0=0;
+  flashEl.addEventListener("touchstart",(ev)=>{
+    const t=ev.touches && ev.touches[0]; if(!t) return;
+    tx=t.clientX; ty=t.clientY; t0=Date.now();
+  }, {passive:true});
+  flashEl.addEventListener("touchend",(ev)=>{
+    const t=ev.changedTouches && ev.changedTouches[0]; if(!t) return;
+    const dx=t.clientX-tx, dy=t.clientY-ty;
+    const adx=Math.abs(dx), ady=Math.abs(dy);
+    // ignore tiny moves
+    if(adx<35 && ady<35) return;
+    if(adx>ady){
+      if(dx<0) $("nextBtn")?.click(); else $("prevBtn")?.click();
+    }else{
+      // swipe up/down flips
+      $("flipBtn")?.click();
+    }
+  }, {passive:true});
+
 }
 let speakOn=true; let currentTab="flash";
 $("speakBtn").addEventListener("click", ()=>{speakOn=!speakOn; $("speakBtn").innerHTML = speakOn ? "🔊 Speak: ON" : "🔇 Speak: OFF"; if(speakOn){const it=item(); if(it && currentTab==="flash" && !flipped) speak(it.term);} });

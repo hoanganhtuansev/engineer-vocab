@@ -1,5 +1,5 @@
 /* Engineer Vocab PWA Service Worker (cache-first) */
-const CACHE_NAME = "engineer-vocab-pwa-v2";
+const CACHE_NAME = "engineer-vocab-pwa-v11";
 const PRECACHE = [
   "./",
   "./index.html",
